@@ -42,10 +42,11 @@ self.onmessage = function (e) {
                 ctx.dpr = dpr;
                 ctx.reset();
                 oldRefreshImmediately.call(this);
+                var commands = ctx.serialize();
                 self.postMessage({
                     action: 'render',
-                    commands: ctx.serialize()
-                });
+                    commands: commands
+                }, [commands.buffer]);
             };
             break;
         case 'resize':
