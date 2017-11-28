@@ -6,6 +6,7 @@ module.exports = [{
     output: {
         libraryTarget: 'umd',
         library: 'echarts',
+        libraryExport: 'default',
         filename: 'dist/echarts.js'
     },
     target: 'web'

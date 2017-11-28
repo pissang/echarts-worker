@@ -1,4 +1,5 @@
-var CanvasContext2D = require('./CanvasContext2D').default;
+import CanvasContext2D from './CanvasContext2D';
+import { normalizeEvent } from 'zrender/src/core/event';
 
 var uuid = 1;
 var workerUrl = './echarts-worker.js';
@@ -27,6 +28,8 @@ function ECharts(dom, theme, opts) {
     this.resize(true);
 
     this._pendingCallbacks = {};
+
+    this._initHandlers();
 }
 
 ECharts.prototype.initManually = function () {
@@ -52,6 +55,10 @@ ECharts.prototype._messageHandler = function (e) {
         switch (data.action) {
             case 'render':
                 this._ctxProxy.execCommands(this._ctx, data.commands);
+                break;
+            case 'setCursor':
+                this._dom.style.cursor = data.cursor || 'default';
+                break;
         }
     }
 };
@@ -104,6 +111,23 @@ ECharts.prototype._sendActionToWorker = function (action, parameters, callback) 
     }
 };
 
+ECharts.prototype._initHandlers = function () {
+    var self = this;
+    ['mousedown', 'mouseup', 'mousemove', 'click', 'dblclick'].forEach(function (eventType) {
+        self._dom.addEventListener(eventType, function (event) {
+            normalizeEvent(event);
+            self._worker.postMessage({
+                action: 'event',
+                eventType: eventType,
+                parameters: {
+                    zrX: event.zrX,
+                    zrY: event.zrY
+                }
+            });
+        });
+    });
+};
+
 var echarts = {
     setWorkerURL: function (_workerUrl) {
         workerUrl = _workerUrl;
@@ -114,4 +138,4 @@ var echarts = {
     }
 };
 
-module.exports = echarts;
+export default echarts;

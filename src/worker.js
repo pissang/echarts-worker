@@ -1,5 +1,6 @@
 import CanvasContext2D from './CanvasContext2D';
 import echarts from 'echarts';
+import HandlerProxy from './HandlerProxy';
 
 function Canvas(width, height) {
     
@@ -20,6 +21,7 @@ echarts.setCanvasCreator(function () {
 var ec;
 var canvas;
 var dpr;
+var handlerProxy;
 
 self.onmessage = function (e) {
     var data = e.data;
@@ -34,8 +36,12 @@ self.onmessage = function (e) {
             });
             canvas.width *= dpr;
             canvas.height *= dpr;
-            var oldRefreshImmediately = ec.getZr().refreshImmediately;
-            ec.getZr().refreshImmediately = function () {
+            handlerProxy = new HandlerProxy();
+            var zr = ec.getZr();
+            zr.handler.setHandlerProxy(handlerProxy);
+
+            var oldRefreshImmediately = zr.refreshImmediately;
+            zr.refreshImmediately = function () {
                 var ctx = canvas.getContext();
                 // Force set context dpr
                 // FIXME
@@ -54,6 +60,10 @@ self.onmessage = function (e) {
             canvas.height = data.parameters[1].height * dpr;
         case 'setOption':
             result = ec[data.action].apply(ec, data.parameters);
+            break;
+        case 'event':
+            handlerProxy.trigger(data.eventType, data.parameters);
+            break;
     }
 
     self.postMessage({
