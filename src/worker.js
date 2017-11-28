@@ -40,9 +40,9 @@ self.onmessage = function (e) {
                 // Force set context dpr
                 // FIXME
                 ctx.dpr = dpr;
-                ctx.reset();
+                ctx.startRecord();
                 oldRefreshImmediately.call(this);
-                var commands = ctx.serialize();
+                var commands = ctx.stopRecord();
                 self.postMessage({
                     action: 'render',
                     commands: commands

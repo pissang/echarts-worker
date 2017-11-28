@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <script src="../dist/echarts.js"></script>
-    <title>Init ECharts</title>
+    <title>Large bar</title>
 </head>
 <body>
     <style>
@@ -26,7 +26,7 @@
                 var data3 = [];
                 var data4 = [];
 
-                for (var i = 0; i < 500; i++) {
+                for (var i = 0; i < 5000; i++) {
                     xAxisData.push('类目' + i);
                     data1.push((Math.random() * 5).toFixed(2));
                     data2.push(Math.random().toFixed(2));
@@ -66,6 +66,9 @@
                             show: false
                         }
                     },
+                    progressive: 0,
+                    animationThreshold: 10000,
+                    animationDuration: 10000,
                     series: [{
                         name: 'bar',
                         type: 'bar',

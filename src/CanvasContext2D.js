@@ -39,8 +39,12 @@ var COMMANDS = [
 var defaultBlackColor = [0, 0, 0, 0];
 var parsedColorRGBA = [];
 
+var EXPAND_RATIO = 5;
+
 function CanvasContext2D() {
-    this._data = [];
+    this._data = null;
+    this._offset = 0;
+    this._recording = false;
 }
 
 CanvasContext2D.prototype = {
@@ -69,8 +73,12 @@ CanvasContext2D.prototype = {
 
     _textAlign: 'start',
 
-    reset: function () {
-        this._data = [];
+    startRecord: function () {
+        this._recording = true;
+        if (!this._data) {
+            this._data = new Float32Array(1e4);
+        }
+        this._offset = 0;
     },
     
     get fillStyle() {
@@ -79,8 +87,7 @@ CanvasContext2D.prototype = {
 
     set fillStyle(val) {
         this._fillStyle = val;
-        this._data.push(COMMANDS.fillStyle);
-        this._addColor(val);
+        this._addColor(COMMANDS.fillStyle, val);
     },
 
     get strokeStyle() {
@@ -89,8 +96,7 @@ CanvasContext2D.prototype = {
 
     set strokeStyle(val) {
         this._strokeStyle = val;
-        this._data.push(COMMANDS.strokeStyle);
-        this._addColor(val);
+        this._addColor(COMMANDS.strokeStyle, val);
     },
 
     get lineWidth() {
@@ -99,8 +105,7 @@ CanvasContext2D.prototype = {
 
     set lineWidth(val) {
         this._lineWidth = val;
-        this._data.push(COMMANDS.lineWidth);
-        this._data.push(val);
+        this._addCommand1(COMMANDS.lineWidth, val);
     },
 
     get font() {
@@ -110,11 +115,9 @@ CanvasContext2D.prototype = {
     set font(val) {
         if (val) {
             this._font = val;
-            this._data.push(COMMANDS.font);
-            this._addString(val);
+            this._addString(COMMANDS.font, val);
         }
     },
-    
     
     get textBaseline() {
         return this._textBaseline;
@@ -123,8 +126,7 @@ CanvasContext2D.prototype = {
     set textBaseline(val) {
         if (val) {
             this._textBaseline = val;
-            this._data.push(COMMANDS.textBaseline);
-            this._addString(val);
+            this._addString(COMMANDS.textBaseline, val);
         }
     },
     get textAlign() {
@@ -134,8 +136,7 @@ CanvasContext2D.prototype = {
     set textAlign(val) {
         if (val) {
             this._textAlign = val;
-            this._data.push(COMMANDS.textAlign);
-            this._addString(val);
+            this._addString(COMMANDS.textAlign, val);
         }
     },
 
@@ -145,8 +146,8 @@ CanvasContext2D.prototype = {
 
     set shadowColor(val) {
         this._shadowColor = val;
-        this._data.push(COMMANDS.shadowColor);
-        this._addColor(val);
+
+        this._addColor(COMMANDS.shadowColor, val);
     },
 
     get shadowBlur() {
@@ -155,8 +156,7 @@ CanvasContext2D.prototype = {
 
     set shadowBlur(val) {
         this._shadowBlur = val;
-        this._data.push(COMMANDS.shadowBlur);
-        this._data.push(val);
+        this._addCommand1(COMMANDS.shadowBlur, val);
     },
 
     get shadowOffsetX() {
@@ -165,8 +165,7 @@ CanvasContext2D.prototype = {
 
     set shadowOffsetX(val) {
         this._shadowOffsetX = val;
-        this._data.push(COMMANDS.shadowOffsetX);
-        this._data.push(val);
+        this._addCommand1(COMMANDS.shadowOffsetX, val);
     },
 
     get shadowOffsetY() {
@@ -175,143 +174,80 @@ CanvasContext2D.prototype = {
 
     set shadowOffsetY(val) {
         this._shadowOffsetY = val;
-        this._data.push(COMMANDS.shadowOffsetY);
-        this._data.push(val);
-    },
-                        
-    _addColor: function (str) {
-        var rgba = color.parse(str, parsedColorRGBA) || defaultBlackColor;
-        this._data.push(rgba[0]);
-        this._data.push(rgba[1]);
-        this._data.push(rgba[2]);
-        this._data.push(rgba[3]);
-    },
-
-    _addString: function (str) {
-        this._data.push(str.length);
-        for (var i = 0; i < str.length; i++) {
-            this._data.push(str.charCodeAt(i));
-        }
+        this._addCommand1(COMMANDS.shadowOffsetY, val);
     },
 
     beginPath: function () {
-        this._data.push(COMMANDS.beginPath);
+        this._addCommand(COMMANDS.beginPath);
     },
 
     moveTo: function (x, y) {
-        this._data.push(COMMANDS.moveTo);
-        this._data.push(x);
-        this._data.push(y);
+        this._addCommand2(COMMANDS.moveTo, x, y);
     },
 
     lineTo: function (x, y) {
-        this._data.push(COMMANDS.lineTo);
-        this._data.push(x);
-        this._data.push(y);
+        this._addCommand2(COMMANDS.lineTo, x, y);
     },
 
     bezierCurveTo: function (x0, y0, x1, y1, x2, y2) {
-        this._data.push(COMMANDS.bezierCurveTo);
-        this._data.push(x0);
-        this._data.push(y0);
-        this._data.push(x1);
-        this._data.push(y1);
-        this._data.push(x2);
-        this._data.push(y2);
+        this._addCommand6(COMMANDS.bezierCurveTo, x0, y0, x1, y1, x2, y2);
     },
 
     quadraticCurveTo: function (x0, y0, x1, y1) {
-        this._data.push(COMMANDS.quadraticCurveTo);
-        this._data.push(x0);
-        this._data.push(y0);
-        this._data.push(x1);
-        this._data.push(y1);
+        this._addCommand4(COMMANDS.quadraticCurveTo, x0, y0, x1, y1);
     },
 
     arc: function (cx, cy, r, startAngle, endAngle, anticlockwise) {
-        this._data.push(COMMANDS.arc);
-        this._data.push(cx);
-        this._data.push(cy);
-        this._data.push(r);
-        this._data.push(startAngle);
-        this._data.push(endAngle);
-        this._data.push(+(!!anticlockwise));
+        this._addCommand6(COMMANDS.arc, cx, cy, r, startAngle, endAngle, +(!!anticlockwise));
     },
 
     rect: function (x, y, width, height) {
-        this._data.push(COMMANDS.rect);
-        this._data.push(x);
-        this._data.push(y);
-        this._data.push(width);
-        this._data.push(height);
+        this._addCommand4(COMMANDS.rect, x, y, width, height);
     },
 
     closePath: function () {
-        this._data.push(COMMANDS.closePath);
+        this._addCommand(COMMANDS.closePath);
     },
 
     fill: function () {
-        this._data.push(COMMANDS.fill);
+        this._addCommand(COMMANDS.fill);
     },
 
     stroke: function () {
-        this._data.push(COMMANDS.stroke);
+        this._addCommand(COMMANDS.stroke);
     },
 
     fillText: function (text, x, y, maxWidth) {
-        this._data.push(COMMANDS.fillText);
-        this._addString(text);
-        this._data.push(x);
-        this._data.push(y);
+        // TODO maxWidth, zrender is not used yet.
+        this._addTextCommand(COMMANDS.fillText, text, x, y);
     },
 
     strokeText: function (text, x, y, maxWidth) {
-        this._data.push(COMMANDS.strokeText);
-        this._addString(text);
-        this._data.push(x);
-        this._data.push(y);
+        this._addTextCommand(COMMANDS.strokeText, text, x, y);
     },
 
     setTransform: function (a, b, c, d, e, f) {
-        this._data.push(COMMANDS.setTransform);
-        this._data.push(a);
-        this._data.push(b);
-        this._data.push(c);
-        this._data.push(d);
-        this._data.push(e);
-        this._data.push(f);
+        this._addCommand6(COMMANDS.setTransform, a, b, c, d, e, f);
     },
 
     save: function () {
-        this._data.push(COMMANDS.save);
+        this._addCommand(COMMANDS.save);
     },
 
     restore: function () {
-        this._data.push(COMMANDS.restore);
+        this._addCommand(COMMANDS.restore);
     },
 
     clearRect: function (x, y, width, height) {
-        this._data.push(COMMANDS.clearRect);
-        this._data.push(x);
-        this._data.push(y);
-        this._data.push(width);
-        this._data.push(height);
+        this._addCommand4(COMMANDS.clearRect, x, y, width, height);
     },
 
     fillRect: function (x, y, width, height) {
-        this._data.push(COMMANDS.fillRect);
-        this._data.push(x);
-        this._data.push(y);
-        this._data.push(width);
-        this._data.push(height);
+        this._addCommand4(COMMANDS.fillRect, x, y, width, height);
     },
 
     strokeRect: function (x, y, width, height) {
-        this._data.push(COMMANDS.strokeRect);
-        this._data.push(x);
-        this._data.push(y);
-        this._data.push(width);
-        this._data.push(height);
+        this._addCommand4(COMMANDS.strokeRect, x, y, width, height);
     },
 
     measureText: function (textStr) { 
@@ -321,8 +257,117 @@ CanvasContext2D.prototype = {
         };
     },
 
-    serialize: function () {
-        return new Float32Array(this._data);
+    stopRecord: function () {
+        this._recording = false;
+        var arr = new Float32Array(this._offset);
+        for (var i = 0; i < this._offset; i++) {
+            arr[i] = this._data[i];
+        }
+        return arr;
+    },
+           
+    _addColor: function (cmd, str) {
+        if (!this._recording) {
+            return;
+        }
+        var rgba = color.parse(str, parsedColorRGBA) || defaultBlackColor;
+        this._addCommand4(cmd, rgba[0], rgba[1], rgba[2], rgba[3]);
+    },
+
+    _addString: function (cmd, str) {
+        if (!this._recording) {
+            return;
+        }
+        var strLen = str.length;
+        if (this._offset + strLen + 2 >= this._data.length) {
+            this._expandArray();
+        }
+        this._data[this._offset++] = cmd;
+        this._data[this._offset++] = str.length;
+        for (var i = 0; i < str.length; i++) {
+            this._data[this._offset++] = str.charCodeAt(i);
+        }
+    },
+
+    _addTextCommand: function (cmd, str, x, y) {
+        if (!this._recording) {
+            return;
+        }
+        var strLen = str.length;
+        if (this._offset + strLen + 4 >= this._data.length) {
+            this._expandArray();
+        }
+        this._addString(cmd, str);
+        this._data[this._offset++] = x;
+        this._data[this._offset++] = y;
+    },
+
+    _addCommand: function (cmd) {
+        if (!this._recording) {
+            return;
+        }
+        if (this._offset + 1 >= this._data.length) {
+            this._expandArray();
+        }
+        this._data[this._offset++] = cmd;
+    },
+    _addCommand1: function (cmd, x) {
+        if (!this._recording) {
+            return;
+        }
+        if (this._offset + 2 >= this._data.length) {
+            this._expandArray();
+        }
+        this._data[this._offset++] = cmd;
+        this._data[this._offset++] = x;
+    },
+
+    _addCommand2: function (cmd, x, y) {
+        if (!this._recording) {
+            return;
+        }
+        if (this._offset + 3 >= this._data.length) {
+            this._expandArray();
+        }
+        this._data[this._offset++] = cmd;
+        this._data[this._offset++] = x;
+        this._data[this._offset++] = y;
+    },
+
+    _addCommand4: function (cmd, x, y, x2, y2) {
+        if (!this._recording) {
+            return;
+        }
+        if (this._offset + 5 >= this._data.length) {
+            this._expandArray();
+        }
+        this._data[this._offset++] = cmd;
+        this._data[this._offset++] = x;
+        this._data[this._offset++] = y;
+        this._data[this._offset++] = x2;
+        this._data[this._offset++] = y2;
+    },
+
+    _addCommand6: function (cmd, x, y, x2, y2, x3, y3) {
+        if (!this._recording) {
+            return;
+        }
+        if (this._offset + 7 >= this._data.length) {
+            this._expandArray();
+        }
+        this._data[this._offset++] = cmd;
+        this._data[this._offset++] = x;
+        this._data[this._offset++] = y;
+        this._data[this._offset++] = x2;
+        this._data[this._offset++] = y2;
+        this._data[this._offset++] = x3;
+        this._data[this._offset++] = y3;
+    },
+
+    _expandArray: function () {
+        var newArr = new Float32Array(this._data.length * EXPAND_RATIO);
+        newArr.set(this._data);
+        this._data = newArr;
     },
 
     repeatCommands: function (ctx, commands) {
@@ -403,7 +448,7 @@ CanvasContext2D.prototype = {
                     i += 4;
                     break;
                 case COMMANDS.shadowBlur:
-                    ctx.shadowOffsetX = commands[i++];
+                    ctx.shadowBlur = commands[i++];
                     break;
                 case COMMANDS.shadowOffsetX:
                     ctx.shadowOffsetX = commands[i++];
