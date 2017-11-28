@@ -1,13 +1,13 @@
 import * as color from 'zrender/src/tool/color';
 import parseCssFont from 'parse-css-font';
 
+var uuid = 0;
+function getUUID() {
+    return uuid++;
+}
+
 var COMMANDS = [
-    'fillStyle',
-    'strokeStyle',
-    'lineWidth',
-    'font',
-    'textBaseline',
-    'textAlign',
+    'setTransform',
     'beginPath',
     'moveTo',
     'lineTo',
@@ -15,6 +15,12 @@ var COMMANDS = [
     'quadraticCurveTo',
     'arc',
     'rect',
+    'fillStyle',
+    'strokeStyle',
+    'lineWidth',
+    'font',
+    'textBaseline',
+    'textAlign',
     'closePath',
     'fill',
     'stroke',
@@ -25,7 +31,11 @@ var COMMANDS = [
     'shadowBlur',
     'shadowOffsetX',
     'shadowOffsetY',
-    'setTransform',
+    // Try to reduce commands....
+    'setIdentityTransform',
+    'setScaleTransform',
+    'setTranslationTransform',
+    'setScaleTranslationTransform',
     'save',
     'restore',
     'clearRect',
@@ -41,10 +51,12 @@ var parsedColorRGBA = [];
 
 var EXPAND_RATIO = 5;
 
-function CanvasContext2D() {
+function CanvasContext2D(dpr) {
     this._data = null;
     this._offset = 0;
     this._recording = false;
+
+    this.dpr = dpr;
 }
 
 CanvasContext2D.prototype = {
@@ -227,7 +239,32 @@ CanvasContext2D.prototype = {
     },
 
     setTransform: function (a, b, c, d, e, f) {
-        this._addCommand6(COMMANDS.setTransform, a, b, c, d, e, f);
+        if (a === this.dpr && d === this.dpr) {
+            if (b === 0 && c === 0) {
+                if (e === 0 && f === 0) {
+                    this._addCommand(COMMANDS.setIdentityTransform);
+                }
+                else {
+                    this._addCommand2(COMMANDS.setTranslationTransform, e, f);
+                }
+            }
+            else {
+                this._addCommand6(COMMANDS.setTransform, a, b, c, d, e, f);
+            }
+        }
+        else {
+            if (b === 0 && c === 0) {
+                if (e === 0 && f === 0) {
+                    this._addCommand2(COMMANDS.setScaleTransform, a, d);
+                }
+                else {
+                    this._addCommand4(COMMANDS.setScaleTranslationTransform, a, d, e, f);
+                }
+            }
+            else {
+                this._addCommand6(COMMANDS.setTransform, a, b, c, d, e, f);
+            }
+        }
     },
 
     save: function () {
@@ -370,13 +407,38 @@ CanvasContext2D.prototype = {
         this._data = newArr;
     },
 
-    repeatCommands: function (ctx, commands) {
+    execCommands: function (ctx, commands) {
+        var token = getUUID();
+        var self = this;
+        function runSlice(offset) {
+            if (self._execToken !== token) {
+                return;
+            }
+            offset = self.execCommandsInSlice(ctx, commands, offset, 15.9);
+            if (offset < commands.length) {
+                requestAnimationFrame(function () {
+                    runSlice(offset);
+                });
+            }
+        }
+
+        this._execToken = token;
+        
+        runSlice(0);
+    },
+
+    execCommandsInSlice: function (ctx, commands, offset, maxRunTime) {
         var prevCmd;
-        var dpr = this._dpr;
-        for (var i = 0; i < commands.length;) {
+        var startTime = Date.now();
+        var drawCount = 0;
+        var prevDrawCount;
+        maxRunTime = maxRunTime || Infinity;
+        offset = offset || 0;
+        for (var i = offset; i < commands.length;) {
             prevCmd = cmd;
             var cmd = commands[i++];
-            switch(cmd) {
+            prevDrawCount = drawCount;
+            switch (cmd) {
                 case COMMANDS.beginPath:
                     ctx.beginPath();
                     break;
@@ -395,14 +457,43 @@ CanvasContext2D.prototype = {
                 case COMMANDS.rect:
                     ctx.rect(commands[i++], commands[i++], commands[i++], commands[i++]);
                     break;
+                case COMMANDS.arc:
+                    ctx.arc(commands[i++], commands[i++], commands[i++], commands[i++], commands[i++], !!commands[i++]);
+                    break;
                 case COMMANDS.closePath:
                     ctx.closePath();
                     break;
                 case COMMANDS.fill:
                     ctx.fill();
+                    drawCount++;
                     break;
                 case COMMANDS.stroke:
                     ctx.stroke();
+                    drawCount++;
+                    break;
+                case COMMANDS.setIdentityTransform:
+                    ctx.setTransform(
+                        this.dpr, 0, 0,
+                        this.dpr, 0, 0
+                    );
+                    break;
+                case COMMANDS.setScaleTransform:
+                    ctx.setTransform(
+                        commands[i++], 0, 0,
+                        commands[i++], 0, 0
+                    );
+                    break;
+                case COMMANDS.setTranslationTransform:
+                    ctx.setTransform(
+                        this.dpr, 0, 0,
+                        this.dpr, commands[i++], commands[i++]
+                    );
+                    break;
+                case COMMANDS.setScaleTranslationTransform:
+                    ctx.setTransform(
+                        commands[i++], 0, 0,
+                        commands[i++], commands[i++], commands[i++]
+                    );
                     break;
                 case COMMANDS.setTransform:
                     ctx.setTransform(
@@ -437,11 +528,13 @@ CanvasContext2D.prototype = {
                     var str = this._parseString(commands, i);
                     i += commands[i] + 1;
                     ctx.fillText(str, commands[i++], commands[i++]);
+                    drawCount++;
                     break;
                 case COMMANDS.strokeText:
                     var str = this._parseString(commands, i);
                     i += commands[i] + 1;
                     ctx.strokeText(str, commands[i++], commands[i++]);
+                    drawCount++;
                     break;
                 case COMMANDS.shadowColor:
                     ctx.shadowColor = this._parseColor(commands, i);
@@ -475,7 +568,19 @@ CanvasContext2D.prototype = {
                     debugger;
                     // console.warn('Unkown commands');
             }
+
+            // Put draw into next chunk
+            if (drawCount > prevDrawCount) {
+                // reset draw count
+                // PENDING, performance?
+                var dTime = Date.now() - startTime;
+                if (dTime > maxRunTime) {
+                    break;
+                }
+            }
         }
+
+        return i;
     },
 
     _parseColor: function (commands, offset) {

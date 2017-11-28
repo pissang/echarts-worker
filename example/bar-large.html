@@ -26,7 +26,7 @@
                 var data3 = [];
                 var data4 = [];
 
-                for (var i = 0; i < 5000; i++) {
+                for (var i = 0; i < 1000; i++) {
                     xAxisData.push('类目' + i);
                     data1.push((Math.random() * 5).toFixed(2));
                     data2.push(Math.random().toFixed(2));
@@ -38,18 +38,6 @@
                     legend: {
                         data: ['bar', 'bar2', 'bar3', 'bar4'],
                         align: 'left'
-                    },
-                    toolbox: {
-                        // y: 'bottom',
-                        feature: {
-                            magicType: {
-                                type: ['line', 'bar', 'stack', 'tiled']
-                            },
-                            dataView: {},
-                            saveAsImage: {
-                                pixelRatio: 2
-                            }
-                        }
                     },
                     xAxis: {
                         data: xAxisData,

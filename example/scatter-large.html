@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <script src="../dist/echarts.js"></script>
+    <title>Large scatter</title>
+</head>
+<body>
+    <style>
+        html, body, #main {
+            margin: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+    </style>
+    <div id="main"></div>
+    <script>
+        echarts.setWorkerURL('../dist/echarts-worker.js');
+        echarts.init(document.getElementById('main'))
+            .then(function (ec) {
+                function randomData(count, offset) {
+                    var d = [];
+                    var len = count;
+                    var x = 0;
+                    while (len--) {
+                        x = (Math.random() * 10) - 0;
+                        d.push([
+                            x,
+                            //Math.random() * 10
+                            (Math.sin(x + offset) - x * (len % 2 ? 0.1 : -0.1) * Math.random()) - 0
+                        ]);
+                    }
+                    return d;
+                }
+                var data0 = randomData(50000, 2);
+                var data1 = randomData(50000, 3);
+                ec.setOption(option = {
+                    title: {
+                        text: '大规模散点图'
+                    },
+                    legend: {
+                        data:['sin','cos']
+                    },
+                    toolbox: {
+                        show : true,
+                        feature : {
+                            mark : {show: true},
+                            dataZoom : {show: true},
+                            dataView : {show: true, readOnly: false},
+                            restore : {show: true},
+                            saveAsImage : {show: true}
+                        }
+                    },
+                    xAxis : [
+                        {
+                            type : 'value',
+                            scale:true
+                        }
+                    ],
+                    yAxis : [
+                        {
+                            type : 'value',
+                            scale:true
+                        }
+                    ],
+                    progressive: 0,
+                    // animationThreshold: 30000,
+                    series : [
+                        {
+                            name:'sin',
+                            type:'scatter',
+                            symbolSize: 4,
+                            data: data0
+                        },
+                        {
+                            name:'cos',
+                            type:'scatter',
+                            symbolSize: 4,
+                            data: data1
+                        }
+                    ]
+                });
+
+                // setInterval(function () {
+                //     ec.setOption({
+                //         series: [{
+                //             data: randomData(1000, Math.random() * 2)
+                //         }, {
+                //             data: randomData(1000, Math.random() * 3)
+                //         }]
+                //     })
+                // }, 2000);
+            });
+    </script>
+</body>
+</html>

@@ -15,7 +15,7 @@ function ECharts(dom, theme, opts) {
     ecWorker.onmessage = this._messageHandler.bind(this);
 
     this._worker = ecWorker;
-    this._ctxProxy = new CanvasContext2D();
+    this._ctxProxy = new CanvasContext2D(devicePixelRatio);
 
     this._canvas = document.createElement('canvas');
     this._ctx = this._canvas.getContext('2d');
@@ -51,7 +51,7 @@ ECharts.prototype._messageHandler = function (e) {
     else {
         switch (data.action) {
             case 'render':
-                this._ctxProxy.repeatCommands(this._ctx, data.commands);
+                this._ctxProxy.execCommands(this._ctx, data.commands);
         }
     }
 };
