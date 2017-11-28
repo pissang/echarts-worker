@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <script src="../dist/echarts.js"></script>
+    <title>Init ECharts</title>
+</head>
+<body>
+    <style>
+        html, body, #main {
+            margin: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+    </style>
+    <div id="main"></div>
+    <script>
+        echarts.setWorkerURL('../dist/echarts-worker.js');
+        echarts.init(document.getElementById('main'))
+            .then(function (ec) {
+                var xAxisData = [];
+                var data1 = [];
+                var data2 = [];
+                var data3 = [];
+                var data4 = [];
+
+                for (var i = 0; i < 500; i++) {
+                    xAxisData.push('类目' + i);
+                    data1.push((Math.random() * 5).toFixed(2));
+                    data2.push(Math.random().toFixed(2));
+                    data3.push((Math.random() + 0.5).toFixed(2));
+                    data4.push((Math.random() + 0.3).toFixed(2));
+                }
+
+                ec.setOption({
+                    legend: {
+                        data: ['bar', 'bar2', 'bar3', 'bar4'],
+                        align: 'left'
+                    },
+                    toolbox: {
+                        // y: 'bottom',
+                        feature: {
+                            magicType: {
+                                type: ['line', 'bar', 'stack', 'tiled']
+                            },
+                            dataView: {},
+                            saveAsImage: {
+                                pixelRatio: 2
+                            }
+                        }
+                    },
+                    xAxis: {
+                        data: xAxisData,
+                        silent: false,
+                        splitLine: {
+                            show: false
+                        },
+                        splitArea: {
+                            show: false
+                        }
+                    },
+                    yAxis: {
+                        splitArea: {
+                            show: false
+                        }
+                    },
+                    series: [{
+                        name: 'bar',
+                        type: 'bar',
+                        stack: 'one',
+                        data: data1
+                    }, {
+                        show: false,
+                        name: 'bar2',
+                        type: 'bar',
+                        stack: 'one',
+                        data: data2
+                    }, {
+                        name: 'bar3',
+                        type: 'bar',
+                        stack: 'two',
+                        data: data3
+                    }, {
+                        name: 'bar4',
+                        type: 'bar',
+                        stack: 'two',
+                        data: data4,
+                        silent: true
+                    }]
+                });
+            });
+    </script>
+</body>
+</html>
