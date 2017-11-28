@@ -57,6 +57,10 @@ function CanvasContext2D(dpr) {
     this._recording = false;
 
     this.dpr = dpr;
+
+    this._transform = [1, 0, 0, 1, 0, 0];
+
+    this._stacks = [];
 }
 
 CanvasContext2D.prototype = {
@@ -98,6 +102,9 @@ CanvasContext2D.prototype = {
     },
 
     set fillStyle(val) {
+        if (val === this._fillStyle) {
+            return;
+        }
         this._fillStyle = val;
         this._addColor(COMMANDS.fillStyle, val);
     },
@@ -107,6 +114,9 @@ CanvasContext2D.prototype = {
     },
 
     set strokeStyle(val) {
+        if (val === this._strokeStyle) {
+            return;
+        }
         this._strokeStyle = val;
         this._addColor(COMMANDS.strokeStyle, val);
     },
@@ -120,12 +130,24 @@ CanvasContext2D.prototype = {
         this._addCommand1(COMMANDS.lineWidth, val);
     },
 
+    get opacity() {
+        return this._opacity;
+    },
+
+    set opacity(val) {
+        this._opacity = val;
+        this._addCommand1(COMMANDS.opacity, val);
+    },
+
     get font() {
         return this._font;
     },
 
     set font(val) {
         if (val) {
+            if (val === this._font) {
+                return;
+            }
             this._font = val;
             this._addString(COMMANDS.font, val);
         }
@@ -137,6 +159,9 @@ CanvasContext2D.prototype = {
 
     set textBaseline(val) {
         if (val) {
+            if (val === this._textBaseline) {
+                return;
+            }
             this._textBaseline = val;
             this._addString(COMMANDS.textBaseline, val);
         }
@@ -147,6 +172,9 @@ CanvasContext2D.prototype = {
 
     set textAlign(val) {
         if (val) {
+            if (val === this._textAlign) {
+                return;
+            }
             this._textAlign = val;
             this._addString(COMMANDS.textAlign, val);
         }
@@ -239,6 +267,11 @@ CanvasContext2D.prototype = {
     },
 
     setTransform: function (a, b, c, d, e, f) {
+        var m = this._transform;
+        if (m[0] === a && m[1] === b && m[2] === b && m[3] === d && m[4] === e && m[5] === f) {
+            return;
+        }
+
         if (a === this.dpr && d === this.dpr) {
             if (b === 0 && c === 0) {
                 if (e === 0 && f === 0) {
@@ -265,13 +298,49 @@ CanvasContext2D.prototype = {
                 this._addCommand6(COMMANDS.setTransform, a, b, c, d, e, f);
             }
         }
+
+        m[0] = a;
+        m[1] = b;
+        m[2] = c;
+        m[3] = d;
+        m[4] = e;
+        m[5] = f;
     },
 
     save: function () {
+        var states = {
+            transform: this._transform.slice(),
+            fillStyle: this._fillStyle,
+            strokeStyle: this._strokeStyle,
+            opacity: this._opacity,
+            font: this._font,
+            textBaseline: this._textBaseline,
+            textAlign: this._textAlign,
+            shadowBlur: this._shadowBlur,
+            shadowOffsetX: this._shadowOffsetX,
+            shadowOffsetY: this._shadowOffsetY,
+            lineWidth: this._lineWidth
+        };
+        this._stacks.push(states);2
         this._addCommand(COMMANDS.save);
     },
 
     restore: function () {
+        var states = this._stacks.pop();
+        if (states) {
+            this._transform = states.transform;
+            this._fillStyle = states.fillStyle;
+            this._strokeStyle = states.strokeStyle;
+            this._opacity = states.opacity;
+            this._font = states.font;
+            this._textBaseline = states.textBaseline;
+            this._textAlign = states.textAlign;
+            this._shadowBlur = states.shadowBlur;
+            this._shadowOffsetX = states.shadowOffsetX;
+            this._shadowOffsetY = states.shadowOffsetY;
+            this._lineWidth = states.lineWidth;
+
+        }
         this._addCommand(COMMANDS.restore);
     },
 
@@ -414,7 +483,7 @@ CanvasContext2D.prototype = {
             if (self._execToken !== token) {
                 return;
             }
-            offset = self.execCommandsInSlice(ctx, commands, offset, 15.9);
+            offset = self.execCommandsInSlice(ctx, commands, offset, 15);
             if (offset < commands.length) {
                 requestAnimationFrame(function () {
                     runSlice(offset);
@@ -511,6 +580,9 @@ CanvasContext2D.prototype = {
                     break;
                 case COMMANDS.lineWidth:
                     ctx.lineWidth = commands[i++];
+                    break;
+                case COMMANDS.opacity:
+                    ctx.opacity = commands[i++];
                     break;
                 case COMMANDS.font:
                     ctx.font = this._parseString(commands, i);
