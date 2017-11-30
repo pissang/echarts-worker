@@ -1,5 +1,6 @@
 import CanvasContext2D from './CanvasContext2D';
 import { normalizeEvent } from 'zrender/src/core/event';
+import zrender from 'zrender';
 
 var uuid = 1;
 var workerUrl = './echarts-worker.js';
@@ -16,12 +17,12 @@ function ECharts(dom, theme, opts) {
     ecWorker.onmessage = this._messageHandler.bind(this);
 
     this._worker = ecWorker;
-    this._ctxProxy = new CanvasContext2D(devicePixelRatio);
 
-    this._canvas = document.createElement('canvas');
-    this._ctx = this._canvas.getContext('2d');
     this._dom = dom;
-    dom.appendChild(this._canvas);
+
+    this._zr = zrender.init(dom, {
+        devicePixelRatio: devicePixelRatio
+    });
 
     this._dpr = devicePixelRatio;
     
@@ -36,8 +37,8 @@ ECharts.prototype.initManually = function () {
     var self = this;
     return new Promise(function (resolve, reject) {
         self._sendActionToWorker('init', [null, {
-            width: self._width,
-            height: self._height,
+            width: self._zr.getWidth(),
+            height: self._zr.getHeight(),
             devicePixelRatio: self._dpr
         }], function () {
             resolve(self);
@@ -54,7 +55,7 @@ ECharts.prototype._messageHandler = function (e) {
     else {
         switch (data.action) {
             case 'render':
-                this._ctxProxy.execCommands(this._ctx, data.commands);
+                this._execCommands(data.layers);
                 break;
             case 'setCursor':
                 this._dom.style.cursor = data.cursor || 'default';
@@ -63,22 +64,25 @@ ECharts.prototype._messageHandler = function (e) {
     }
 };
 
+ECharts.prototype._execCommands = function (layerCommands)  {
+    for (var zlevel in layerCommands) {
+        var layer = this._zr.painter.getLayer(+zlevel);
+        var ctx = layer.ctx;
+        if (!layer.__ctxProxy) {
+            layer.__ctxProxy = new CanvasContext2D();
+            layer.__ctxProxy.dpr = this._dpr;
+        }
+        layer.__ctxProxy.execCommands(ctx, layerCommands[zlevel].commands);
+    }
+};
+
 ECharts.prototype.resize = function (notPostMessage) {
-    var width = this._dom.clientWidth;
-    var height = this._dom.clientHeight;
-    this._canvas.width = width * this._dpr;
-    this._canvas.height = height * this._dpr;
-
-    this._canvas.style.width = width + 'px';
-    this._canvas.style.height = height + 'px';
-
-    this._width = width;
-    this._height = height;
+    this._zr.resize();
 
     if (!notPostMessage) {
         return this._promisifySendActionToWorker('resize', [{
-            width: width, 
-            height: height
+            width: this._zr.getWidth(), 
+            height: this._zr.getHeight()
         }]);
     }
 

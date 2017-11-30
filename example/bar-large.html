@@ -26,7 +26,7 @@
                 var data3 = [];
                 var data4 = [];
 
-                for (var i = 0; i < 1000; i++) {
+                for (var i = 0; i < 5000; i++) {
                     xAxisData.push('类目' + i);
                     data1.push((Math.random() * 5).toFixed(2));
                     data2.push(Math.random().toFixed(2));
@@ -55,8 +55,7 @@
                         }
                     },
                     progressive: 0,
-                    animationThreshold: 10000,
-                    animationDuration: 10000,
+                    // animation: false,
                     series: [{
                         name: 'bar',
                         type: 'bar',

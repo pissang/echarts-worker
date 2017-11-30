@@ -51,12 +51,10 @@ var parsedColorRGBA = [];
 
 var EXPAND_RATIO = 5;
 
-function CanvasContext2D(dpr) {
+function CanvasContext2D() {
     this._data = null;
     this._offset = 0;
     this._recording = false;
-
-    this.dpr = dpr;
 
     this._transform = [1, 0, 0, 1, 0, 0];
 
@@ -365,11 +363,16 @@ CanvasContext2D.prototype = {
 
     stopRecord: function () {
         this._recording = false;
-        var arr = new Float32Array(this._offset);
+
+        var arr = this._recordedCommands = new Float32Array(this._offset);
         for (var i = 0; i < this._offset; i++) {
             arr[i] = this._data[i];
         }
         return arr;
+    },
+
+    getRecordedCommands: function () {
+        return this._recordedCommands || new Float32Array();
     },
            
     _addColor: function (cmd, str) {
@@ -476,14 +479,15 @@ CanvasContext2D.prototype = {
         this._data = newArr;
     },
 
-    execCommands: function (ctx, commands) {
+    execCommands: function (ctx, commands, maxSliceTime) {
         var token = getUUID();
         var self = this;
+        maxSliceTime = maxSliceTime || 15;
         function runSlice(offset) {
             if (self._execToken !== token) {
                 return;
             }
-            offset = self.execCommandsInSlice(ctx, commands, offset, 15);
+            offset = self.execCommandsInSlice(ctx, commands, offset, maxSliceTime);
             if (offset < commands.length) {
                 requestAnimationFrame(function () {
                     runSlice(offset);

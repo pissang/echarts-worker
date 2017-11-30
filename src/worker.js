@@ -1,63 +1,59 @@
-import CanvasContext2D from './CanvasContext2D';
+import VirtualDivElement from './VirtualDivElement';
 import echarts from 'echarts';
 import HandlerProxy from './HandlerProxy';
+import VirtualDocument from './VirtualDocument';
 
-function Canvas(width, height) {
-    
-    this.width = width || 100;
-    this.height = height || 100;
-
-    var ctx = new CanvasContext2D();
-
-    this.getContext = function () {
-        return ctx;
-    };
-}
-
-echarts.setCanvasCreator(function () {
-    return new Canvas();
-});
+self.document = new VirtualDocument();
 
 var ec;
-var canvas;
+var root;
 var dpr;
 var handlerProxy;
+
+function initECharts(parameters) {
+    root = new VirtualDivElement();
+    dpr = parameters[1].devicePixelRatio || 1;
+    ec = echarts.init(root, parameters[0], {
+        width: parameters[1].width || 100,
+        height: parameters[1].height || 100,
+        devicePixelRatio: dpr
+    });
+    handlerProxy = new HandlerProxy();
+    var zr = ec.getZr();
+    zr.handler.setHandlerProxy(handlerProxy);
+
+    var oldRefreshImmediately = zr.refreshImmediately;
+    zr.refreshImmediately = function () {
+        var layersCommands = {};
+        var commandsBuffers = [];
+        zr.painter.eachLayer(function (layer, zlevel) {
+            layer.ctx.startRecord();
+        });
+        oldRefreshImmediately.call(this);
+        zr.painter.eachLayer(function (layer, zlevel) {
+            var ctx = layer.ctx;
+            var commands = ctx.stopRecord();
+            layersCommands[zlevel] = {
+                commands: commands
+            };
+            commandsBuffers.push(commands.buffer);
+        });
+        self.postMessage({
+            action: 'render',
+            layers: layersCommands
+        }, commandsBuffers);
+    };
+}
 
 self.onmessage = function (e) {
     var data = e.data;
     var result;
     switch (data.action) {
         case 'init':
-            canvas = new Canvas();
-            dpr = data.parameters[1].devicePixelRatio || 1;
-            ec = echarts.init(canvas, null, {
-                width: data.parameters[1].width,
-                height: data.parameters[1].height
-            });
-            canvas.width *= dpr;
-            canvas.height *= dpr;
-            handlerProxy = new HandlerProxy();
-            var zr = ec.getZr();
-            zr.handler.setHandlerProxy(handlerProxy);
-
-            var oldRefreshImmediately = zr.refreshImmediately;
-            zr.refreshImmediately = function () {
-                var ctx = canvas.getContext();
-                // Force set context dpr
-                // FIXME
-                ctx.dpr = dpr;
-                ctx.startRecord();
-                oldRefreshImmediately.call(this);
-                var commands = ctx.stopRecord();
-                self.postMessage({
-                    action: 'render',
-                    commands: commands
-                }, [commands.buffer]);
-            };
+            initECharts(data.parameters);
             break;
         case 'resize':
-            canvas.width = data.parameters[1].width * dpr;
-            canvas.height = data.parameters[1].height * dpr;
+            ec.resize(data.parameters[0].width, data.parameters[0].height);
         case 'setOption':
             result = ec[data.action].apply(ec, data.parameters);
             break;

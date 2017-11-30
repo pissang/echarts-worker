@@ -37,13 +37,16 @@
                 var data1 = randomData(50000, 3);
                 ec.setOption(option = {
                     title: {
-                        text: '大规模散点图'
+                        text: '大规模散点图',
+                        zlevel: 1
                     },
                     legend: {
-                        data:['sin','cos']
+                        data:['sin','cos'],
+                        zlevel: 1
                     },
                     toolbox: {
                         show : true,
+                        zlevel: 1,
                         feature : {
                             mark : {show: true},
                             dataZoom : {show: true},
@@ -51,6 +54,9 @@
                             restore : {show: true},
                             saveAsImage : {show: true}
                         }
+                    },
+                    brush: {
+                        zlevel: 1
                     },
                     xAxis : [
                         {
@@ -70,13 +76,15 @@
                         {
                             name:'sin',
                             type:'scatter',
-                            symbolSize: 4,  
+                            symbolSize: 4,
+                            large: true,
                             data: data0
                         },
                         {
                             name:'cos',
                             type:'scatter',
                             symbolSize: 4,
+                            large: true,
                             data: data1
                         }
                     ]
