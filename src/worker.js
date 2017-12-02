@@ -23,6 +23,22 @@ function initECharts(parameters) {
     zr.handler.setHandlerProxy(handlerProxy);
 
     var oldRefreshImmediately = zr.refreshImmediately;
+    var oldRefreshHoverImmediately = zr.refreshHoverImmediately;
+
+    zr.refreshHoverImmediately = function () {
+        var hoverLayer = zr.painter.getHoverLayer();
+        var commands = {};
+        hoverLayer.ctx.startRecord();
+        oldRefreshHoverImmediately.call(this);
+        commands[hoverLayer.zlevel] = {
+            commands: hoverLayer.ctx.stopRecord()
+        };
+        self.postMessage({
+            action: 'render',
+            layers: commands
+        })
+    };
+
     zr.refreshImmediately = function () {
         var layersCommands = {};
         var commandsBuffers = [];

@@ -20,6 +20,7 @@ webpack
 ## Roadmap
 
 - Events
+- Hover layer, layers
 - Images
 - Callback in Option
 - GeoJSON data register
