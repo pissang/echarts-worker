@@ -73,7 +73,7 @@ ECharts.prototype.dispose = function () {
 
 ECharts.prototype._initHandlers = function () {
     var self = this;
-    ['mousedown', 'mouseup', 'mousemove', 'click', 'dblclick'].forEach(function (eventType) {
+    ['mousedown', 'mouseup', 'mousemove', 'click', 'dblclick', 'zoom', 'DOMMouseScroll', 'mousewheel'].forEach(function (eventType) {
         self._dom.addEventListener(eventType, function (event) {
             normalizeEvent(event);
             worker.postMessage({
@@ -82,7 +82,8 @@ ECharts.prototype._initHandlers = function () {
                 eventType: eventType,
                 parameters: {
                     zrX: event.zrX,
-                    zrY: event.zrY
+                    zrY: event.zrY,
+                    zrDelta: event.zrDelta
                 }
             });
         });

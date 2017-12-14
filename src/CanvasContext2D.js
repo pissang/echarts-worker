@@ -21,33 +21,13 @@ function CanvasContext2D() {
     this._transform = [1, 0, 0, 1, 0, 0];
 
     this._stacks = [];
+
+    this._reset();
 }
 
 CanvasContext2D.prototype = {
 
     constructor: CanvasContext2D,
-
-    _fillStyle: '#000',
-
-    _strokeStyle: '#000',
-
-    _opacity: 1,
-
-    _shadowColor: '#000',
-
-    _shadowBlur: 0,
-
-    _shadowOffsetX: 0,
-
-    _shadowOffsetY: 0,
-
-    _lineWidth: 1,
-
-    _font: '12px sans-serif',
-
-    _textBaseline: 'alphabetic',
-
-    _textAlign: 'start',
 
     startRecord: function () {
         this._recording = true;
@@ -55,6 +35,24 @@ CanvasContext2D.prototype = {
             this._data = new Float32Array(1e4);
         }
         this._offset = 0;
+        this._reset();
+    },
+
+    _reset: function () {
+
+        this._fillStyle = '#000';
+        this._strokeStyle = '#000';
+        this._globalAlpha = 1;
+        this._shadowColor = '#000';
+        this._shadowBlur = 0;
+        this._shadowOffsetX = 0;
+        this._shadowOffsetY = 0;
+        this._lineWidth = 1;
+        this._font = '12px sans-serif';
+        this._textBaseline = 'alphabetic';
+        this._textAlign = 'start';
+        this._globalCompositeOperation = 'source-over';
+
     },
 
     get fillStyle() {
@@ -90,13 +88,13 @@ CanvasContext2D.prototype = {
         this._addCommand1(COMMANDS.lineWidth, val);
     },
 
-    get opacity() {
-        return this._opacity;
+    get globalAlpha() {
+        return this._globalAlpha;
     },
 
-    set opacity(val) {
-        this._opacity = val;
-        this._addCommand1(COMMANDS.opacity, val);
+    set globalAlpha(val) {
+        this._globalAlpha = val;
+        this._addCommand1(COMMANDS.globalAlpha, val);
     },
 
     get font() {
@@ -145,9 +143,10 @@ CanvasContext2D.prototype = {
     },
 
     set shadowColor(val) {
-        this._shadowColor = val;
-
-        this._addColor(COMMANDS.shadowColor, val);
+        if (val !== this._shadowColor) {
+            this._shadowColor = val;
+            this._addColor(COMMANDS.shadowColor, val);
+        }
     },
 
     get shadowBlur() {
@@ -175,6 +174,17 @@ CanvasContext2D.prototype = {
     set shadowOffsetY(val) {
         this._shadowOffsetY = val;
         this._addCommand1(COMMANDS.shadowOffsetY, val);
+    },
+
+    get globalCompositeOperation() {
+        return this._globalCompositeOperation;
+    },
+
+    set globalCompositeOperation(val) {
+        if (val !== this._globalCompositeOperation) {
+            this._globalCompositeOperation = val;
+            this._addString(COMMANDS.globalCompositeOperation, val);
+        }
     },
 
     beginPath: function () {
@@ -272,16 +282,17 @@ CanvasContext2D.prototype = {
             transform: this._transform.slice(),
             fillStyle: this._fillStyle,
             strokeStyle: this._strokeStyle,
-            opacity: this._opacity,
+            globalAlpha: this._globalAlpha,
             font: this._font,
             textBaseline: this._textBaseline,
             textAlign: this._textAlign,
             shadowBlur: this._shadowBlur,
             shadowOffsetX: this._shadowOffsetX,
             shadowOffsetY: this._shadowOffsetY,
-            lineWidth: this._lineWidth
+            lineWidth: this._lineWidth,
+            globalCompositeOperation: this._globalCompositeOperation
         };
-        this._stacks.push(states);2
+        this._stacks.push(states);
         this._addCommand(COMMANDS.save);
     },
 
@@ -291,7 +302,7 @@ CanvasContext2D.prototype = {
             this._transform = states.transform;
             this._fillStyle = states.fillStyle;
             this._strokeStyle = states.strokeStyle;
-            this._opacity = states.opacity;
+            this._globalAlpha = states.globalAlpha;
             this._font = states.font;
             this._textBaseline = states.textBaseline;
             this._textAlign = states.textAlign;
@@ -299,6 +310,7 @@ CanvasContext2D.prototype = {
             this._shadowOffsetX = states.shadowOffsetX;
             this._shadowOffsetY = states.shadowOffsetY;
             this._lineWidth = states.lineWidth;
+            this._globalCompositeOperation = states.globalCompositeOperation;
 
         }
         this._addCommand(COMMANDS.restore);

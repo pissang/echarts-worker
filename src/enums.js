@@ -7,6 +7,7 @@ var COMMANDS = [
     'quadraticCurveTo',
     'arc',
     'rect',
+    'globalAlpha',
     'fillStyle',
     'strokeStyle',
     'lineWidth',

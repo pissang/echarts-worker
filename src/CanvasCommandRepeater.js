@@ -120,8 +120,8 @@ CanvasCommandRepeater.prototype.execute = function (maxRunTime) {
             case COMMANDS.lineWidth:
                 ctx.lineWidth = commands[i++];
                 break;
-            case COMMANDS.opacity:
-                ctx.opacity = commands[i++];
+            case COMMANDS.globalAlpha:
+                ctx.globalAlpha = commands[i++];
                 break;
             case COMMANDS.font:
                 ctx.font = getString(commands, i);
@@ -159,6 +159,11 @@ CanvasCommandRepeater.prototype.execute = function (maxRunTime) {
                 break;
             case COMMANDS.shadowOffsetY:
                 ctx.shadowOffsetY = commands[i++];
+                break;
+            case COMMANDS.globalCompositeOperation:
+                var str = getString(commands, i);
+                i += commands[i] + 1;
+                ctx.globalCompositeOperation = str;
                 break;
             case COMMANDS.save:
                 ctx.save();

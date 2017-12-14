@@ -68,11 +68,13 @@ function initECharts(parameters) {
         zr.painter.eachLayer(function (layer, zlevel) {
             var ctx = layer.ctx;
             var commands = ctx.stopRecord();
-            layersCommands[zlevel] = {
-                clear: layer.__cleared,
-                commands: commands
-            };
-            commandsBuffers.push(commands.buffer);
+            if (commands.length > 0) {
+                layersCommands[zlevel] = {
+                    clear: layer.__cleared,
+                    commands: commands
+                };
+                commandsBuffers.push(commands.buffer);
+            }
         });
         self.postMessage({
             chartId: chart.id,
