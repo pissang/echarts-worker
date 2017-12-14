@@ -2,8 +2,17 @@ import VirtualDivElement from './VirtualDivElement';
 import echarts from 'echarts';
 import HandlerProxy from './HandlerProxy';
 import VirtualDocument from './VirtualDocument';
+import Layer from 'zrender/src/Layer';
 
 self.document = new VirtualDocument();
+
+
+Layer.prototype.__cleared = true;
+var oldClear = Layer.prototype.clear;
+Layer.prototype.clear = function () {
+    oldClear.arguments(this, arguments);
+    this.__cleared = true;
+};
 
 var ec;
 var root;
@@ -18,6 +27,7 @@ function initECharts(parameters) {
         height: parameters[1].height || 100,
         devicePixelRatio: dpr
     });
+
     handlerProxy = new HandlerProxy();
     var zr = ec.getZr();
     zr.handler.setHandlerProxy(handlerProxy);
@@ -25,18 +35,23 @@ function initECharts(parameters) {
     var oldRefreshImmediately = zr.refreshImmediately;
     var oldRefreshHoverImmediately = zr.refreshHoverImmediately;
 
+    function clearWrapper() {
+
+    }
     zr.refreshHoverImmediately = function () {
         var hoverLayer = zr.painter.getHoverLayer();
         var commands = {};
+
         hoverLayer.ctx.startRecord();
         oldRefreshHoverImmediately.call(this);
         commands[hoverLayer.zlevel] = {
+            clear: true,
             commands: hoverLayer.ctx.stopRecord()
         };
         self.postMessage({
             action: 'render',
             layers: commands
-        })
+        });
     };
 
     zr.refreshImmediately = function () {
@@ -44,12 +59,14 @@ function initECharts(parameters) {
         var commandsBuffers = [];
         zr.painter.eachLayer(function (layer, zlevel) {
             layer.ctx.startRecord();
+            layer.__cleared = false;
         });
         oldRefreshImmediately.call(this);
         zr.painter.eachLayer(function (layer, zlevel) {
             var ctx = layer.ctx;
             var commands = ctx.stopRecord();
             layersCommands[zlevel] = {
+                clear: layer.__cleared,
                 commands: commands
             };
             commandsBuffers.push(commands.buffer);

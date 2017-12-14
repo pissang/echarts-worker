@@ -1,50 +1,11 @@
 import * as color from 'zrender/src/tool/color';
 import parseCssFont from 'parse-css-font';
+import COMMANDS from './commands';
 
 var uuid = 0;
 function getUUID() {
     return uuid++;
 }
-
-var COMMANDS = [
-    'setTransform',
-    'beginPath',
-    'moveTo',
-    'lineTo',
-    'bezierCurveTo',
-    'quadraticCurveTo',
-    'arc',
-    'rect',
-    'fillStyle',
-    'strokeStyle',
-    'lineWidth',
-    'font',
-    'textBaseline',
-    'textAlign',
-    'closePath',
-    'fill',
-    'stroke',
-    'fillText',
-    'strokeText',
-    'measureText',
-    'shadowColor',
-    'shadowBlur',
-    'shadowOffsetX',
-    'shadowOffsetY',
-    // Try to reduce commands....
-    'setIdentityTransform',
-    'setScaleTransform',
-    'setTranslationTransform',
-    'setScaleTranslationTransform',
-    'save',
-    'restore',
-    'clearRect',
-    'fillRect',
-    'strokeRect'
-].reduce(function (obj, val, idx) {
-    obj[val] = idx;
-    return obj;
-}, {});
 
 var defaultBlackColor = [0, 0, 0, 0];
 var parsedColorRGBA = [];
@@ -94,7 +55,7 @@ CanvasContext2D.prototype = {
         }
         this._offset = 0;
     },
-    
+
     get fillStyle() {
         return this._fillStyle;
     },
@@ -150,7 +111,7 @@ CanvasContext2D.prototype = {
             this._addString(COMMANDS.font, val);
         }
     },
-    
+
     get textBaseline() {
         return this._textBaseline;
     },
@@ -354,7 +315,7 @@ CanvasContext2D.prototype = {
         this._addCommand4(COMMANDS.strokeRect, x, y, width, height);
     },
 
-    measureText: function (textStr) { 
+    measureText: function (textStr) {
         var font = parseCssFont(this._font);
         return {
             width: parseInt(font.size) * textStr.length
@@ -374,7 +335,7 @@ CanvasContext2D.prototype = {
     getRecordedCommands: function () {
         return this._recordedCommands || new Float32Array();
     },
-           
+
     _addColor: function (cmd, str) {
         if (!this._recording) {
             return;
@@ -477,204 +438,6 @@ CanvasContext2D.prototype = {
         var newArr = new Float32Array(this._data.length * EXPAND_RATIO);
         newArr.set(this._data);
         this._data = newArr;
-    },
-
-    execCommands: function (ctx, commands, maxSliceTime) {
-        var token = getUUID();
-        var self = this;
-        maxSliceTime = maxSliceTime || 15;
-        function runSlice(offset) {
-            if (self._execToken !== token) {
-                return;
-            }
-            offset = self.execCommandsInSlice(ctx, commands, offset, maxSliceTime);
-            if (offset < commands.length) {
-                requestAnimationFrame(function () {
-                    runSlice(offset);
-                });
-            }
-        }
-
-        this._execToken = token;
-        
-        runSlice(0);
-    },
-
-    execCommandsInSlice: function (ctx, commands, offset, maxRunTime) {
-        var prevCmd;
-        var startTime = Date.now();
-        var drawCount = 0;
-        var prevDrawCount;
-        maxRunTime = maxRunTime || Infinity;
-        offset = offset || 0;
-        for (var i = offset; i < commands.length;) {
-            prevCmd = cmd;
-            var cmd = commands[i++];
-            prevDrawCount = drawCount;
-            switch (cmd) {
-                case COMMANDS.beginPath:
-                    ctx.beginPath();
-                    break;
-                case COMMANDS.moveTo:
-                    ctx.moveTo(commands[i++], commands[i++]);
-                    break;
-                case COMMANDS.lineTo:
-                    ctx.lineTo(commands[i++], commands[i++]);
-                    break;
-                case COMMANDS.bezierCurveTo:
-                    ctx.bezierCurveTo(commands[i++], commands[i++], commands[i++], commands[i++], commands[i++], commands[i++]);
-                    break;
-                case COMMANDS.quadraticCurveTo:
-                    ctx.quadraticCurveTo(commands[i++], commands[i++], commands[i++], commands[i++]);
-                    break;
-                case COMMANDS.rect:
-                    ctx.rect(commands[i++], commands[i++], commands[i++], commands[i++]);
-                    break;
-                case COMMANDS.arc:
-                    ctx.arc(commands[i++], commands[i++], commands[i++], commands[i++], commands[i++], !!commands[i++]);
-                    break;
-                case COMMANDS.closePath:
-                    ctx.closePath();
-                    break;
-                case COMMANDS.fill:
-                    ctx.fill();
-                    drawCount++;
-                    break;
-                case COMMANDS.stroke:
-                    ctx.stroke();
-                    drawCount++;
-                    break;
-                case COMMANDS.setIdentityTransform:
-                    ctx.setTransform(
-                        this.dpr, 0, 0,
-                        this.dpr, 0, 0
-                    );
-                    break;
-                case COMMANDS.setScaleTransform:
-                    ctx.setTransform(
-                        commands[i++], 0, 0,
-                        commands[i++], 0, 0
-                    );
-                    break;
-                case COMMANDS.setTranslationTransform:
-                    ctx.setTransform(
-                        this.dpr, 0, 0,
-                        this.dpr, commands[i++], commands[i++]
-                    );
-                    break;
-                case COMMANDS.setScaleTranslationTransform:
-                    ctx.setTransform(
-                        commands[i++], 0, 0,
-                        commands[i++], commands[i++], commands[i++]
-                    );
-                    break;
-                case COMMANDS.setTransform:
-                    ctx.setTransform(
-                        commands[i++], commands[i++], commands[i++],
-                        commands[i++], commands[i++], commands[i++]
-                    );
-                    break;
-                case COMMANDS.fillStyle:
-                    ctx.fillStyle = this._parseColor(commands, i);
-                    i += 4;
-                    break;
-                case COMMANDS.strokeStyle:
-                    ctx.strokeStyle = this._parseColor(commands, i);
-                    i += 4;
-                    break;
-                case COMMANDS.lineWidth:
-                    ctx.lineWidth = commands[i++];
-                    break;
-                case COMMANDS.opacity:
-                    ctx.opacity = commands[i++];
-                    break;
-                case COMMANDS.font:
-                    ctx.font = this._parseString(commands, i);
-                    i += commands[i] + 1;
-                    break;
-                case COMMANDS.textBaseline:
-                    ctx.textBaseline = this._parseString(commands, i);
-                    i += commands[i] + 1;
-                    break;
-                case COMMANDS.textAlign:
-                    ctx.textAlign = this._parseString(commands, i);
-                    i += commands[i] + 1;
-                    break;
-                case COMMANDS.fillText:
-                    var str = this._parseString(commands, i);
-                    i += commands[i] + 1;
-                    ctx.fillText(str, commands[i++], commands[i++]);
-                    drawCount++;
-                    break;
-                case COMMANDS.strokeText:
-                    var str = this._parseString(commands, i);
-                    i += commands[i] + 1;
-                    ctx.strokeText(str, commands[i++], commands[i++]);
-                    drawCount++;
-                    break;
-                case COMMANDS.shadowColor:
-                    ctx.shadowColor = this._parseColor(commands, i);
-                    i += 4;
-                    break;
-                case COMMANDS.shadowBlur:
-                    ctx.shadowBlur = commands[i++];
-                    break;
-                case COMMANDS.shadowOffsetX:
-                    ctx.shadowOffsetX = commands[i++];
-                    break;
-                case COMMANDS.shadowOffsetY:
-                    ctx.shadowOffsetY = commands[i++];
-                    break;
-                case COMMANDS.save:
-                    ctx.save();
-                    break;
-                case COMMANDS.restore:
-                    ctx.restore();
-                    break;
-                case COMMANDS.clearRect:
-                    ctx.clearRect(commands[i++], commands[i++], commands[i++], commands[i++]);
-                    break;
-                case COMMANDS.fillRect:
-                    ctx.fillRect(commands[i++], commands[i++], commands[i++], commands[i++]);
-                    break;
-                case COMMANDS.strokeRect:
-                    ctx.strokeRect(commands[i++], commands[i++], commands[i++], commands[i++]);
-                    break;
-                default:
-                    debugger;
-                    // console.warn('Unkown commands');
-            }
-
-            // Put draw into next chunk
-            if (drawCount > prevDrawCount) {
-                // reset draw count
-                // PENDING, performance?
-                var dTime = Date.now() - startTime;
-                if (dTime > maxRunTime) {
-                    break;
-                }
-            }
-        }
-
-        return i;
-    },
-
-    _parseColor: function (commands, offset) {
-        var r = commands[offset++];
-        var g = commands[offset++];
-        var b = commands[offset++];
-        var a = commands[offset++];
-
-        return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
-    },
-
-    _parseString: function (commands, offset) {
-        var len = commands[offset];
-        var str = '';
-        for (var i = 0; i < len; i++) {
-            str += String.fromCharCode(commands[i + 1 + offset]);
-        }
-        return str;
     }
 };
 
