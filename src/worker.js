@@ -6,7 +6,6 @@ import Layer from 'zrender/src/Layer';
 
 self.document = new VirtualDocument();
 
-
 Layer.prototype.__cleared = true;
 var oldClear = Layer.prototype.clear;
 Layer.prototype.clear = function () {
@@ -14,30 +13,33 @@ Layer.prototype.clear = function () {
     this.__cleared = true;
 };
 
-var ec;
-var root;
-var dpr;
-var handlerProxy;
+var instances = {};
 
 function initECharts(parameters) {
-    root = new VirtualDivElement();
-    dpr = parameters[1].devicePixelRatio || 1;
-    ec = echarts.init(root, parameters[0], {
+    var root = new VirtualDivElement();
+    var dpr = parameters[1].devicePixelRatio || 1;
+    var chart = echarts.init(root, parameters[0], {
         width: parameters[1].width || 100,
         height: parameters[1].height || 100,
         devicePixelRatio: dpr
     });
+    instances[chart.id] = chart;
 
-    handlerProxy = new HandlerProxy();
-    var zr = ec.getZr();
+    var handlerProxy = new HandlerProxy();
+    handlerProxy.setCursor = function (cursor) {
+        self.postMessage({
+            chartId: chart.id,
+            action: 'setCursor',
+            cursor: cursor
+        });
+    };
+
+    var zr = chart.getZr();
     zr.handler.setHandlerProxy(handlerProxy);
 
     var oldRefreshImmediately = zr.refreshImmediately;
     var oldRefreshHoverImmediately = zr.refreshHoverImmediately;
 
-    function clearWrapper() {
-
-    }
     zr.refreshHoverImmediately = function () {
         var hoverLayer = zr.painter.getHoverLayer();
         var commands = {};
@@ -49,6 +51,7 @@ function initECharts(parameters) {
             commands: hoverLayer.ctx.stopRecord()
         };
         self.postMessage({
+            chartId: chart.id,
             action: 'render',
             layers: commands
         });
@@ -72,26 +75,48 @@ function initECharts(parameters) {
             commandsBuffers.push(commands.buffer);
         });
         self.postMessage({
+            chartId: chart.id,
             action: 'render',
             layers: layersCommands
         }, commandsBuffers);
     };
+
+    return chart;
 }
 
 self.onmessage = function (e) {
     var data = e.data;
     var result;
+    var chart;
+    if (data.chartId != null) {
+        chart = instances[data.chartId];
+    }
     switch (data.action) {
         case 'init':
-            initECharts(data.parameters);
+            chart = initECharts(data.parameters);
+            result = chart.id;
+            break;
+        case 'registerMap':
+        case 'getMap':
+            result = echarts[data.action].apply(echarts, data.parameters);
+            break;
+        case 'dispose':
+            if (chart) {
+                chart.dispose();
+                delete instances[data.chartId];
+            }
             break;
         case 'resize':
-            ec.resize(data.parameters[0].width, data.parameters[0].height);
+            chart && chart.resize(data.parameters[0].width, data.parameters[0].height);
         case 'setOption':
-            result = ec[data.action].apply(ec, data.parameters);
+            if (chart) {
+                result = chart[data.action].apply(chart, data.parameters);
+            }
             break;
         case 'event':
-            handlerProxy.trigger(data.eventType, data.parameters);
+            if (chart) {
+                chart.getZr().handler.proxy.trigger(data.eventType, data.parameters);
+            }
             break;
     }
 
@@ -99,6 +124,7 @@ self.onmessage = function (e) {
         action: data.action,
         callback: true,
         uuid: data.uuid,
-        result: result || null
+        chartId: data.chartId,
+        result: result != null ? result : null
     });
 };

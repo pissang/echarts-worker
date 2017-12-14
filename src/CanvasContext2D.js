@@ -1,6 +1,7 @@
 import * as color from 'zrender/src/tool/color';
 import parseCssFont from 'parse-css-font';
-import COMMANDS from './commands';
+import enums from './enums';
+var COMMANDS = enums.COMMANDS;
 
 var uuid = 0;
 function getUUID() {

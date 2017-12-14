@@ -1,4 +1,5 @@
-import COMMANDS from './commands';
+import enums from './enums';
+var COMMANDS = enums.COMMANDS;
 
 function getColor(commands, offset) {
     var r = commands[offset++];

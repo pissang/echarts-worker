@@ -4,19 +4,18 @@ import zrender from 'zrender';
 
 var uuid = 1;
 var workerUrl = './echarts-worker.js';
+var worker;
+
+var instances = {};
+
 function getUUID() {
     return uuid++;
 }
 
 function ECharts(dom, theme, opts) {
-    var ecWorker = new Worker(workerUrl);
 
     opts = opts || {};
     var devicePixelRatio = opts.devicePixelRatio || window.devicePixelRatio || 1;
-
-    ecWorker.onmessage = this._messageHandler.bind(this);
-
-    this._worker = ecWorker;
 
     this._dom = dom;
 
@@ -29,8 +28,6 @@ function ECharts(dom, theme, opts) {
 
     this.resize(true);
 
-    this._pendingCallbacks = {};
-
     // PENDING commands of each layer
     this._pendingCommands = {};
 
@@ -40,12 +37,54 @@ function ECharts(dom, theme, opts) {
 ECharts.prototype.initManually = function () {
     var self = this;
     return new Promise(function (resolve, reject) {
-        self._sendActionToWorker('init', [null, {
+        sendActionToWorker(this, 'init', [null, {
             width: self._zr.getWidth(),
             height: self._zr.getHeight(),
             devicePixelRatio: self._dpr
-        }], function () {
+        }], function (id) {
+            self.id = id;
+            instances[id] = self;
             resolve(self);
+        });
+    });
+};
+
+ECharts.prototype.resize = function (notPostMessage) {
+    this._zr.resize();
+
+    if (!notPostMessage) {
+        return promisifySendActionToWorker(this, 'resize', [{
+            width: this._zr.getWidth(),
+            height: this._zr.getHeight()
+        }]);
+    }
+};
+
+ECharts.prototype.setOption = function (option, notMerge) {
+    return promisifySendActionToWorker(this, 'setOption', [option, notMerge]);
+};
+
+ECharts.prototype.dispose = function () {
+    this._zr.dispose();
+    delete instances[this.id];
+    return promisifySendActionToWorker(this, 'dispose');
+};
+
+
+ECharts.prototype._initHandlers = function () {
+    var self = this;
+    ['mousedown', 'mouseup', 'mousemove', 'click', 'dblclick'].forEach(function (eventType) {
+        self._dom.addEventListener(eventType, function (event) {
+            normalizeEvent(event);
+            worker.postMessage({
+                chartId: self.id,
+                action: 'event',
+                eventType: eventType,
+                parameters: {
+                    zrX: event.zrX,
+                    zrY: event.zrY
+                }
+            });
         });
     });
 };
@@ -65,24 +104,6 @@ ECharts.prototype._loop = function () {
         totalExecTime += execTime;
     }
     // console.log(totalExecTime);
-};
-
-ECharts.prototype._messageHandler = function (e) {
-    var data = e.data;
-    if (data.callback && data.uuid && this._pendingCallbacks[data.uuid]) {
-        this._pendingCallbacks[data.uuid].callback(data.result);
-        delete this._pendingCallbacks[data.uuid];
-    }
-    else {
-        switch (data.action) {
-            case 'render':
-                this._updateLayerCommands(data.layers);
-                break;
-            case 'setCursor':
-                this._zr.setCursorStyle(data.cursor || 'default');
-                break;
-        }
-    }
 };
 
 ECharts.prototype._clearLayerCommands = function (layers) {
@@ -105,69 +126,87 @@ ECharts.prototype._updateLayerCommands = function (layerCommands) {
     }
 };
 
-ECharts.prototype.resize = function (notPostMessage) {
-    this._zr.resize();
+var echarts = {};
 
-    if (!notPostMessage) {
-        return this._promisifySendActionToWorker('resize', [{
-            width: this._zr.getWidth(),
-            height: this._zr.getHeight()
-        }]);
+echarts.setWorkerURL = function (_workerUrl) {
+    workerUrl = _workerUrl;
+};
+
+echarts.init = function (dom) {
+    var ec = new ECharts(dom);
+    return ec.initManually();
+};
+
+echarts.dispose = function (chart) {
+    chart.dispose();
+};
+
+echarts.registerMap = function (name, geoJSON) {
+    return promisifySendActionToWorker('registerMap', [name, geoJSON]);
+};
+
+echarts.getMap = function (name) {
+    return promisifySendActionToWorker('getMap', [name]);
+};
+
+/////////////// Communicate with worker.
+var pendingCallbacks = {};
+function messageHandler(e) {
+    var data = e.data;
+
+    var chart;
+    if (data.chartId != null) {
+        chart = instances[data.chartId];
     }
 
-};
+    if (data.callback && data.uuid && pendingCallbacks[data.uuid]) {
+        pendingCallbacks[data.uuid].callback(data.result);
+        delete pendingCallbacks[data.uuid];
+    }
+    else {
+        switch (data.action) {
+            case 'render':
+                chart && chart._updateLayerCommands(data.layers);
+                break;
+            case 'setCursor':
+                chart && chart._zr.setCursorStyle(data.cursor || 'default');
+                break;
+        }
+    }
+}
 
-ECharts.prototype.setOption = function (option, notMerge) {
-    return this._promisifySendActionToWorker('setOption', [option, notMerge]);
-};
-
-ECharts.prototype._promisifySendActionToWorker = function (action, parameters) {
-    var self = this;
+function promisifySendActionToWorker(chart, action, parameters) {
     return new Promise(function (resolve, reject) {
-        self._sendActionToWorker(action, parameters, resolve);
+        sendActionToWorker(chart, action, parameters, resolve);
     });
 };
 
-ECharts.prototype._sendActionToWorker = function (action, parameters, callback) {
+function sendActionToWorker(chart, action, parameters, callback) {
+    if (!worker) {
+        worker = new Worker(workerUrl);
+        worker.onmessage = messageHandler;
+    }
+
+    // Chart parameter is ignored.
+    if (typeof chart === 'string') {
+        parameters = action;
+        action = chart;
+        chart = null;
+    }
+
     var uuid = getUUID();
-    this._worker.postMessage({
+    worker.postMessage({
+        chartId: chart ? chart.id : null,
         action: action,
         parameters: parameters,
         uuid: uuid
     });
 
     if (callback) {
-        this._pendingCallbacks[uuid] = {
+        pendingCallbacks[uuid] = {
             action: action,
             callback: callback
         };
-    }
-};
-
-ECharts.prototype._initHandlers = function () {
-    var self = this;
-    ['mousedown', 'mouseup', 'mousemove', 'click', 'dblclick'].forEach(function (eventType) {
-        self._dom.addEventListener(eventType, function (event) {
-            normalizeEvent(event);
-            self._worker.postMessage({
-                action: 'event',
-                eventType: eventType,
-                parameters: {
-                    zrX: event.zrX,
-                    zrY: event.zrY
-                }
-            });
-        });
-    });
-};
-
-var echarts = {
-    setWorkerURL: function (_workerUrl) {
-        workerUrl = _workerUrl;
-    },
-    init: function (dom) {
-        var ec = new ECharts(dom);
-        return ec.initManually();
     }
 };
 

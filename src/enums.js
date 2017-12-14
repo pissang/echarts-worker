@@ -11,6 +11,7 @@ var COMMANDS = [
     'strokeStyle',
     'lineWidth',
     'font',
+    'globalCompositeOperation',
     'textBaseline',
     'textAlign',
     'closePath',
@@ -38,4 +39,6 @@ var COMMANDS = [
     return obj;
 }, {});
 
-export default COMMANDS;
+export default {
+    COMMANDS
+};

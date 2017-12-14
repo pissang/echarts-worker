@@ -8,10 +8,6 @@ function HandlerProxy() {
 HandlerProxy.prototype.dispose = function () {};
 
 HandlerProxy.prototype.setCursor = function (cursor) {
-    self.postMessage({
-        action: 'setCursor',
-        cursor: cursor
-    });
 };
 
 mixin(HandlerProxy, Eventful);
